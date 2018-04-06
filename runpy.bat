@@ -1,2 +1,2 @@
 @echo off
-python E:\GDrive\GitHub\MergePDF\mergePDF.py
+python mergePDF.py
