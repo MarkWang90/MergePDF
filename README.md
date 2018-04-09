@@ -1,20 +1,32 @@
-# MergePDF
+# Tool box
+A collection of tools commonly used, keep updating...
 
-A little program to merge PDF using PyPDF2.
+## **mergePDF.py**: A little program to merge PDF using PyPDF2.
 
 ## A simple Example
 1. Enter the # of PDF files to be merged: 
-![alt text][fig1]
-2. Enter the folder where the final PDF to be saved
-![alt text][fig2]
+<img src="https://github.com/MarkWang90/MergePDF/blob/master/pic/fig1.PNG" alt="Fig. 1" width="500">
+2. Enter the folder where the final PDF to be saved:
+<img src="https://github.com/MarkWang90/MergePDF/blob/master/pic/fig2.PNG" alt="Fig. 1" width="500">
 3. Select the PDF files one by one:
-![alt text][fig3]
-![alt text][fig4]
-4. Enter the name of the merged file:
-![alt text][fig5]
+<img src="https://github.com/MarkWang90/MergePDF/blob/master/pic/fig3.PNG" alt="Fig. 1" width="500">
+<img src="https://github.com/MarkWang90/MergePDF/blob/master/pic/fig4.PNG" alt="Fig. 1" width="500">
 
-[fig1]: https://github.com/MarkWang90/MergePDF/blob/master/pic/fig1.PNG 
-[fig2]: https://github.com/MarkWang90/MergePDF/blob/master/pic/fig2.PNG 
-[fig3]: https://github.com/MarkWang90/MergePDF/blob/master/pic/fig3.PNG 
-[fig4]: https://github.com/MarkWang90/MergePDF/blob/master/pic/fig4.PNG 
-[fig5]: https://github.com/MarkWang90/MergePDF/blob/master/pic/fig5.PNG 
+4. Enter the name of the merged file:
+<img src="https://github.com/MarkWang90/MergePDF/blob/master/pic/fig5.PNG" alt="Fig. 1" width="500">
+
+
+
+## **findlargefile.py**: find files under a specific folder above certain size
+* filesize in MB
+* location gives the path (sub-path auto added)
+```python
+filesize = 30
+location = r'D:\GDrive\water\RioGrande_MakeData_Mark'
+
+if __name__ == '__main__':
+    print('This program searches for ...')
+    print('Files larger than %d MB in location: %s' % (filesize, location))
+    for filename, size in search_folder(location, filesize):
+        print(filename)
+```
