@@ -39,4 +39,3 @@ class pdfmerger():
         
 merger = pdfmerger()
 merger.merge()
-        
