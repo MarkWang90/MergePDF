@@ -1,9 +1,12 @@
 # Tool box
 A collection of tools commonly used, keep updating...
 
-## **mergePDF.py**: A little program to merge PDF using PyPDF2.
+## Table of Contents
+1. [merge pdfs](#mergepdf)
+2. [find large files](#largefiles)
 
-## A simple Example
+## 1. **mergePDF.py**: A little program to merge PDF using PyPDF2 <a name='mergepdf'></a>
+
 1. Enter the # of PDF files to be merged: 
 <img src="https://github.com/MarkWang90/MergePDF/blob/master/pic/fig1.PNG" alt="Fig. 1" width="500">
 2. Enter the folder where the final PDF to be saved:
@@ -17,7 +20,7 @@ A collection of tools commonly used, keep updating...
 
 
 
-## **findlargefile.py**: find files under a specific folder above certain size
+## 2. **findlargefile.py**: find files under a specific folder above certain size <a name='largefiles'></a>
 * filesize in MB
 * location gives the path (sub-path auto added)
 ```python
