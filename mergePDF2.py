@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Apr  5 16:22:29 2018
-
-Automated PDF processing
+Created on Wed Apr 18 10:56:16 2018
 
 @author: markp
 """
@@ -14,13 +12,24 @@ from tkinter.filedialog import askopenfilename
 
 class pdfmerger():
     def __init__(self):
-        self.n_files = input("number of files to be merged: ")
-        nf = int(self.n_files)
+        
         self.path = askdirectory(title = "Select folder", mustexist = True)
-        self.pdfs = ['']*nf
         os.chdir(self.path)
-        for i in range(nf):
-            self.pdfs[i]=askopenfilename(title = f"Select {i}th PDF: ")
+        self.methods = input("methods: 1 - merge all under a folder; 2 - select files: ")
+        
+        if self.methods == '2':
+            self.n_files = input("number of files to be merged: ")
+            nf = int(self.n_files)
+        
+            self.pdfs = ['']*nf
+            os.chdir(self.path)
+            for i in range(nf):
+                self.pdfs[i]=askopenfilename(title = f"Select {i}th PDF: ")
+                
+        if self.methods == '1':
+            self.pdfs = [elem for elem in os.listdir(self.path) if elem.endswith('.pdf')]
+            
+            
         self.savename = input("Name of merged file: ")
         
        

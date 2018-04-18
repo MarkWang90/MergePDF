@@ -22,11 +22,16 @@ def search_folder(location, min_filesize):
                 # maybe log error, maybe `pass`, maybe raise an exception
                 # (halting further processing), maybe return an error object
 
-filesize = 30
-location = r'D:\GDrive\water\RioGrande_MakeData_Mark'
+filesize = 100
+location = r'C:\FASOM\Study'
 
 if __name__ == '__main__':
     print('This program searches for ...')
     print('Files larger than %d MB in location: %s' % (filesize, location))
+    counts = 0
     for filename, size in search_folder(location, filesize):
+        counts = counts+1
         print(filename)
+    print(f'total number of files larger than {filesize} MB -- {counts}')
+
+    
