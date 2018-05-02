@@ -1,2 +1,2 @@
 @echo off
-python mergePDF.py
+python mergePDF2.py
