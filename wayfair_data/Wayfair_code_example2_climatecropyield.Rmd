@@ -1,0 +1,296 @@
+---
+title: "R Spatial Panel Data Modeling with Application to Corn Yield"
+author: "Mark Wang"
+date: "May 2, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Agricultural production is directly influenced by climate and thus is vulnerable to climate change. The research question of this example is to assess the impact of climate change (e.g. temperature and precipitation) on agricultural productivity. Corn production in Corn Belt is used for a case study as it is the most import grain crop in US. 
+
+This code example is inspired by the work of [Schlenker et al. (2009)](http://www.pnas.org/content/106/37/15594), which is originally conducted using STATA, with two extensions:
+* New dataset update to 2015 was collected
+* Schlenker et al. (2009) used the panel model estimation. In reality, crop production shows spatial correlations in natural due to similar soil charastersitics and weather conditions. Thus, a Spatial Panel model is also included and compared.
+
+```{r echo=FALSE, message=FALSE}
+#### 0. install library ####
+
+library(plm)
+library(spam)
+library(splm)
+
+library(spdep)
+library(shapefiles)
+library(rgdal)
+print("Import library finished")
+```
+
+
+```{r echo=FALSE}
+options(scipen=999)
+options(digits=4)
+
+#### 1. pre-defined functions ####
+
+
+# Function to calculate mean squared error
+RMSE <- function(vector1, vector2){  
+  return(sqrt(sum((vector1-vector2)^2)/length(vector1)))
+}
+
+# Function to make side-by-side maps
+# dataf a dataframe with 1st col fips, 2nd col year,, 3rd col value
+# samescale equals to TRUE or FALSE, setting graphs of different years in the same scale  
+MakeGraphs <- function(dataf,samescale){
+  if(samescale){
+    yrange <- range(dataf[,3])[2]-range(dataf[,3])[1]
+    ylabel <- seq(range(dataf[,3])[1], range(dataf[,3])[2], by=yrange/9)
+    colorkey <- list(labels=list(at = ylabel,labels = round(ylabel,1),cex=1))
+  } else {colorkey=FALSE}
+    
+  len_t = length(unique(dataf$year))
+  for (t in 1:len_t){
+    
+    curdata <- dataf[which(dataf$year == unique(dataf$year)[t]),]
+    rownames(curdata) <- curdata$fips
+    curdata.comb <- combine.data.shapefile2(curdata,shp = shp_c, dbf = dbf_c)
+    plot = spplot(curdata.comb,
+                  main=paste(colnames(dataf)[3], ":",
+                             unique(dataf$year)[t]-10, "-",
+                             unique(dataf$year)[t],
+                             sep = " "), 
+                  at=ylabel,colorkey=colorkey,zcol=3)
+    
+    position = c((t-1)/len_t,0,t/len_t,1)
+    if(t==len_t){
+      more=FALSE} else{more=TRUE}
+    
+    print(plot, position = position, more = more)
+  }
+}
+
+### Function to combine dataframe with GIS shapefiles
+combine.data.shapefile2=function (data, shp, dbf) 
+{
+  n <- nrow(data)
+  polygons <- as.list(rep(NA, n))
+  names(polygons) <- rownames(data)
+  for (i in 1:n) {
+    index <- which(dbf$dbf[, 1] == names(polygons)[i])
+    if (length(index) == 0) {
+    }
+    else if (length(index) == 1) {
+      shapefile <- shp$shp[[index]]
+      if (shapefile$num.parts == 1) {
+        temp <- Polygon(shapefile$points[,1:2])
+        polygons[[i]] <- Polygons(list(temp), names(polygons)[i])
+      }
+      else {
+        n.parts <- shapefile$num.parts
+        results.part <- as.list(rep(0, n.parts))
+        breakpoints <- c(shapefile$parts, shapefile$num.points)
+        for (k in 1:n.parts) {
+          start <- breakpoints[k] + 1
+          end <- breakpoints[(k + 1)]
+          results.part[[k]] <- Polygon(shapefile$points[start:end, 
+                                                        1:2])
+        }
+        polygons[[i]] <- Polygons(results.part, names(polygons)[i])
+      }
+    }
+    else {
+      n.parts <- length(index)
+      results.part <- as.list(rep(0, n.parts))
+      for (k in 1:n.parts) {
+        shapefile <- shp$shp[[index[k]]]
+        results.part[k] <- Polygon(shapefile$points[,1:2])
+      }
+      polygons[[i]] <- Polygons(results.part, names(polygons)[i])
+    }
+  }
+  na.check <- rep(0, n)
+  for (i in 1:n) {
+    if (class(polygons[[i]]) == "logical") 
+      na.check[i] <- 1
+  }
+  if (sum(na.check) == n) 
+    stop("None of the rownames of the data object match the first column of the dbf object.", 
+         call. = FALSE)
+  dataextend <- data.frame(rep(0, n), data)
+  datatrimmed <- dataextend[na.check == 0, ]
+  datatrimmed2 <- data.frame(datatrimmed[, -1])
+  rownames(datatrimmed2) <- rownames(datatrimmed)
+  colnames(datatrimmed2) <- colnames(data)
+  polygonstrimmed <- polygons[na.check == 0]
+  poly <- SpatialPolygons(polygonstrimmed)
+  combined.data <- SpatialPolygonsDataFrame(poly, datatrimmed2)
+  return(combined.data)
+}
+```
+
+## Data import and clean
+
+The data import and clean file are long and not the focus of this example. As a result, they were including in a seperate R file avaialble [here](). Thus, we will read the processed file direct.
+
+```{r}
+#### 2. Import Data
+allPanel = read.csv("Paneldata.csv", header=TRUE);allPanel=allPanel[,-1]
+
+shapefile <- readOGR('oneyear.shp')
+coordinatess <- coordinates(shapefile)
+shapefile.knn <- knearneigh(coordinatess, k = 4)
+shapefile.nb <- knn2nb(shapefile.knn)
+listw <- nb2listw(shapefile.nb)
+
+shp_c<-read.shp(shp.name="cb_2014_us_county_500k.shp")
+dbf_c<-read.dbf(dbf.name="cb_2014_us_county_500k.dbf")
+dbf_c$dbf <-dbf_c$dbf[,c(5,1:4,6:9)]
+temp=dbf_c$dbf[,1]
+dbf_c$dbf$GEOID <- as.numeric(as.character(temp))
+
+print("... Import data done ...")
+```
+
+```{r}
+#### 3. Data pre-analysis and plot
+selectyears <- c(1985, 2015)
+columnstoshow = c("fips","logcornyield","prec","lower","higher")
+tenyear_average = data.frame()
+
+for (year in selectyears){
+  temp = allPanel[which(allPanel$year<=year &
+                   allPanel$year>(year-10) ),columnstoshow] 
+  temp$year = year
+  
+  tenyear_average = rbind(tenyear_average,aggregate(temp,list(temp$fips),mean))
+}
+
+
+tenyear_average=tenyear_average[,c(2,7,3,4,5,6)];head(tenyear_average)
+names(tenyear_average)=c("fips","year","logcornyield","precip.","dday10c","dday29c")
+
+MakeGraphs(tenyear_average[,c(1,2,3)],samescale = TRUE)
+#MakeGraphs(tenyear_average[,c(1,2,4)],samescale = TRUE)
+#MakeGraphs(tenyear_average[,c(1,2,5)],samescale = TRUE)
+#MakeGraphs(tenyear_average[,c(1,2,6)],samescale = TRUE)
+```
+```{r}
+#### 4. Model fit  ####
+
+## convert data into numeric values
+
+data_train = allPanel[which(allPanel$year < 2011),]
+formula <- logcornyield~lower+higher+prec+precsq+t+t2
+
+## 4.1 Conventional Panel fixed effect model
+fit1 <- plm(formula=formula, data = data_train,
+            model = "within",
+            effect = "individual")
+
+## 4.2. Spatial panel model with fixed effect 
+fit2 <- spml(formula=formula, data = data_train, 
+             listw = listw, model = "within", 
+             spatial.error = "b", Hess = FALSE)
+```
+
+```{r}
+#### 5. Model performance
+data_test <- allPanel[which(allPanel$year >= 2011),]
+y_test <- data_test$logcornyield
+
+## 5.1 PLM prediction
+fixef <- rep(fixef(fit1), each=5)
+coef <- fit1$coefficients
+mod.mat <- model.matrix(logcornyield~lower+higher+prec+precsq+t+t2-1, 
+                        data = data_test)
+pred1 <- fixef + mod.mat%*%coef
+mse_fit1 <- RMSE(y_test, pred1)
+print(sprintf("out-of-sample mean squared error is %s for Conventional Panel", round(mse_fit1,3)))
+
+## 5.2 SPML prediction
+
+intercept <- rep(effects(fit2)$INTTable[,1], dim(mod.mat)[1])
+fixef2 <- rep(effects(fit2)$SETable[,1], each=5)
+coef2 <- fit2$coefficients[-1]
+
+pred2 <- intercept + fixef2 + mod.mat%*%coef2
+mse_fit2 <- RMSE(y_test, pred2)
+print(sprintf("out-of-sample mean squared error is %s for Spatial Panel", round(mse_fit2,3)))
+
+```
+
+
+```{r}
+#### 6. Model tuning
+knn_list = seq(1,7,1)
+mse_list = c()
+
+for (knn in knn_list){
+#  print(sprintf("setting # of nearest neighbour numbers to %s .", knn))
+  shapefile.knn <- knearneigh(coordinatess, k = knn)
+  shapefile.nb <- knn2nb(shapefile.knn)
+  listw <- nb2listw(shapefile.nb)
+  
+  fit2 <- spml(formula=formula, data = data_train, 
+             listw = listw, model = "within", 
+             spatial.error = "b", Hess = FALSE)
+  
+  intercept <- rep(effects(fit2)$INTTable[,1], dim(mod.mat)[1])
+  fixef2 <- rep(effects(fit2)$SETable[,1], each=5)
+  coef2 <- fit2$coefficients[-1]
+
+  pred2 <- intercept + fixef2 + mod.mat%*%coef2
+#  print(RMSE(y_test, pred2))
+  mse_list <- c(mse_list, RMSE(y_test, pred2))
+
+}
+plot(knn_list,mse_list,main="Model performance against # of K Nearest Neighbor",xlab="# of K nearest neighbour", ylab="Out-of-sample MSE")
+```
+
+```{r}
+fips <- 99900:99935
+year <- rep(9999,length(fips))
+
+added <-  data.frame(matrix(vector(), length(fips), dim(allPanel)[2]),
+                         stringsAsFactors=F)
+colnames(added)=colnames(allPanel) 
+
+added$fips <- fips; added$year <- year
+added$longitude <- mean(allPanel$longitude); added$latitude <- mean(allPanel$latitude)
+added$t <- mean(allPanel$t); added$t2 <- mean(allPanel$t2)
+added$prec <- mean(allPanel$prec); added$precsq <- mean(allPanel$precsq)
+
+ddaysvalue <- c(0,5,8,10,12,15,20,25,29,30,31,32,33,34)
+ddaycols <- colnames(allPanel)[which(grepl("dday",colnames(allPanel)) )]
+
+names(ddaysvalue) <- ddaycols
+
+meanvec <- apply(allPanel,2,mean)
+
+count <- 0
+for (i in which(grepl("dday",colnames(allPanel)) )){
+  count <- count+1
+  first <- which(added$fips-99900 == ddaysvalue[i-9+1])
+  added[1:first,i] <- meanvec[i]
+  added[first:length(fips),i] <- (added[first:length(fips),1]-99900-ddaysvalue[count])*2*pi+meanvec[i]
+}
+
+added$lower <- added$dday0C
+added$higher <- added$dday29C
+
+mod.mat.new <- model.matrix(~lower+higher+prec+precsq+t+t2-1, 
+                        data = added)
+
+pred1 <- rep(mean(fixef),length(fips)) + mod.mat.new%*%coef
+pred2 <- intercept[1:length(fips)] + mod.mat.new%*%coef2
+
+plot(0:35,pred1, ylim=c(4.20,4.55),type="l",xlab="Exposure to one additional day at certain degree - celsius", ylab="impact on log yield")
+lines(0:35,pred2, ylim=c(4.20,4.55),col='red')
+legend("bottomleft", legend=c("Conventional Panel", "Spatial Panel"),
+       col=c("black", "red"), lty=1:2, cex=0.8)
+
+```
+

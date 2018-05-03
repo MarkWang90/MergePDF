@@ -99,3 +99,4 @@ ENV/
 .mypy_cache/
 runpy.bat
 runpy.bat
+.Rproj.user
