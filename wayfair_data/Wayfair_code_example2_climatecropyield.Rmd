@@ -12,8 +12,10 @@ knitr::opts_chunk$set(echo = TRUE)
 Agricultural production is directly influenced by climate and thus is vulnerable to climate change. The research question of this example is to assess the impact of climate change (e.g. temperature and precipitation) on agricultural productivity. Corn production in Corn Belt is used for a case study as it is the most import grain crop in US. 
 
 This code example is inspired by the work of [Schlenker et al. (2009)](http://www.pnas.org/content/106/37/15594), which is originally conducted using STATA, with two extensions:
-* New dataset update to 2015 was collected
-* Schlenker et al. (2009) used the panel model estimation. In reality, crop production shows spatial correlations in natural due to similar soil charastersitics and weather conditions. Thus, a Spatial Panel model is also included and compared.
+1. New dataset update to 2015 was collected
+2. Schlenker et al. (2009) used the panel model estimation. In reality, crop production shows spatial correlations in natural due to similar soil charastersitics and weather conditions. Thus, a Spatial Panel model is also included and compared.
+
+## Import libraries
 
 ```{r echo=FALSE, message=FALSE}
 #### 0. install library ####
@@ -28,6 +30,11 @@ library(rgdal)
 print("Import library finished")
 ```
 
+## Define functions
+Three functions are defined which will be used repeated in this example:
+1. **RMSE** calculates the mean squared error
+2. **MakeGraphs** generates side-by-side maps automately
+3. **combine.data.shapefile2** combines data with shapefiles, adopted from R package [CARBayes](https://www.rdocumentation.org/packages/CARBayes/versions/5.0) and modified to fit this project.
 
 ```{r echo=FALSE}
 options(scipen=999)
@@ -133,7 +140,7 @@ combine.data.shapefile2=function (data, shp, dbf)
 
 ## Data import and clean
 
-The data import and clean file are long and not the focus of this example. As a result, they were including in a seperate R file avaialble [here](). Thus, we will read the processed file direct.
+The data import and clean file are long and not the focus of this example. As a result, they were including in a seperate R file avaialble [here](https://github.com/MarkWang90/Tool-box/blob/master/wayfair_data/makedata/DataGeneration.r). If you download the entire folder [here](https://github.com/MarkWang90/Tool-box/tree/master/wayfair_data/makedata) and run the R file "DataGeneration.r", you should be able to generate the csv file "Paneldata.csv" which will be used in the rest of the project. 
 
 ```{r}
 #### 2. Import Data
@@ -154,6 +161,17 @@ dbf_c$dbf$GEOID <- as.numeric(as.character(temp))
 print("... Import data done ...")
 ```
 
+## Data pre-analysis and plot
+Next we map out and check the data. The four plots shows the four variables in our study region in the [Corn Belt](https://en.wikipedia.org/wiki/Corn_Belt) regions:
+1. log corn yield
+2. precipitation in cm during the growing season
+3. cumulative [growing degress days](https://en.wikipedia.org/wiki/Growing_degree-day) above 0 celsius
+4. cumulative growing degress days above 29 celsius
+
+The data covers **782** counties from **1950 - 2015**. We only plot the county-level average for two time periods, namely 1975-1985, and 2005-2015 for illustration.
+
+We can see from the plots that corn yield is highest in the Corn Belt, especially in Illinois and Iowa. We also see that precipitation generally decreases from east to west and the degree days increase from north to south. 
+
 ```{r}
 #### 3. Data pre-analysis and plot
 selectyears <- c(1985, 2015)
@@ -173,10 +191,17 @@ tenyear_average=tenyear_average[,c(2,7,3,4,5,6)];head(tenyear_average)
 names(tenyear_average)=c("fips","year","logcornyield","precip.","dday10c","dday29c")
 
 MakeGraphs(tenyear_average[,c(1,2,3)],samescale = TRUE)
-#MakeGraphs(tenyear_average[,c(1,2,4)],samescale = TRUE)
-#MakeGraphs(tenyear_average[,c(1,2,5)],samescale = TRUE)
-#MakeGraphs(tenyear_average[,c(1,2,6)],samescale = TRUE)
+MakeGraphs(tenyear_average[,c(1,2,4)],samescale = TRUE)
+MakeGraphs(tenyear_average[,c(1,2,5)],samescale = TRUE)
+MakeGraphs(tenyear_average[,c(1,2,6)],samescale = TRUE)
 ```
+
+## Model Fit
+Now we examine the impact of climate change on corn yield, using log(cornyield) as dependent variable, and precipitation, growing degress days (at 0 and 29 celsius), as wel as squared terms and time trends as control variables. We fitted both **Conventional Panel Model** and **Spatial Panel Model** with fixed effects, considering the potential spatial correlation of corn yield (resulting from the similar soil, weather characteristics from nearby regions).
+
+Also, we only used data until 2010 for training and hold out last five years for model testing.
+
+
 ```{r}
 #### 4. Model fit  ####
 
@@ -195,6 +220,10 @@ fit2 <- spml(formula=formula, data = data_train,
              listw = listw, model = "within", 
              spatial.error = "b", Hess = FALSE)
 ```
+
+## Model Performance Check
+
+The hold-out data from 2011 to 2015 is used to calculate the out-of-sample MSE for both model. It seems that in this case, the Spatial Panel model did not show significant improvement as the two MSE are close.
 
 ```{r}
 #### 5. Model performance
@@ -222,6 +251,10 @@ print(sprintf("out-of-sample mean squared error is %s for Spatial Panel", round(
 
 ```
 
+## Model tuning
+One thing we can try to improve the performance of the Spatial Panel model is tuning a key parameter, namely the number of nearest neighbors (KNN) we choose to build the spatial weight matrix. We used KNN equals 4 in the previous estimation and would like to explore other options ranging from 1 to 7.
+
+It seems that the optimal KNN would be 2 as showed in the plot below.
 
 ```{r}
 #### 6. Model tuning
@@ -250,7 +283,11 @@ for (knn in knn_list){
 plot(knn_list,mse_list,main="Model performance against # of K Nearest Neighbor",xlab="# of K nearest neighbour", ylab="Out-of-sample MSE")
 ```
 
+## Model Interpretation
+Finally we would like to address our research question: how would climate change affect corn productivity. Especially, we want to examine the impact of increasing temperature as heat is often regarded in the contraints in this region (for example see a study [here](http://igrow.org/agronomy/corn/drought-and-heat-effects-on-corn-production/). To do this, we generate the figure below, which shows the change in log yield when exposed to one additional day at a given temperature. We can see from the plot that moderate warm conditions would benefit corn productivity but once above 29 celsius, extreme heats would severely damage corn yield.
+
 ```{r}
+#### Model Interpretation
 fips <- 99900:99935
 year <- rep(9999,length(fips))
 
